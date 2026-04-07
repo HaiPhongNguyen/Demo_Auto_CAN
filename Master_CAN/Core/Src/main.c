@@ -26,12 +26,16 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct
+{
+	CAN_RxHeaderTypeDef header;
+	uint8_t data[8];
+} CAN_Frame_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define CAN_QUEUE_SIZE		32
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,11 +49,10 @@ CAN_HandleTypeDef hcan;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-typedef struct
-{
-	CAN_RxHeaderTypeDef     RxHeader;
-	uint8_t data[8];
-} Can_Frame_t;
+volatile CAN_Frame_t canQueue[CAN_QUEUE_SIZE];
+volatile uint8_t canHead = 0;
+volatile uint8_t canTail = 0;
+volatile uint8_t canCount = 0;
 
 uint8_t RxData[64];
 uint8_t UART_TxData[64];
@@ -68,9 +71,20 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN 0 */
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData);
+    CAN_Frame_t tempFrame;
 
-	/* Assign into tx fifo of uart for transmission */
+    HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &tempFrame.header, tempFrame.data);
+
+    if (canCount < CAN_QUEUE_SIZE)
+    {
+        canQueue[canHead] = tempFrame;
+        canHead = (canHead + 1) % CAN_QUEUE_SIZE;
+        canCount++;
+    }
+    else
+    {
+        // buffer full -> báo lỗi mất frame
+    }
 
 }
 /* USER CODE END 0 */
@@ -107,6 +121,10 @@ int main(void)
   MX_CAN_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  uint8_t msg[] = "HELLO ESP32\r\n";
+  HAL_UART_Transmit(&huart1, msg, sizeof(msg)-1, 100);
+  HAL_Delay(1000);
+
   HAL_CAN_Start(&hcan);
 
   /* Active the notification */
@@ -120,7 +138,22 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  uint8_t uartPacket[16];
+	  if (canCount > 0)
+	  {
+		  CAN_Frame_t frame = canQueue[canTail];
 
+		  canTail = (canTail + 1) % CAN_QUEUE_SIZE;
+		  canCount--;
+
+		  uartPacket[0U] = (frame.header.StdId >> 8) & 0xff;
+		  uartPacket[1U] = frame.header.StdId & 0xff;
+		  uartPacket[2U] = frame.header.DLC;
+
+		  memcpy(&uartPacket[3U], frame.data, frame.header.DLC);
+
+		  HAL_UART_Transmit(&huart1, uartPacket, frame.header.DLC + 3, 100);
+	  }
   }
   /* USER CODE END 3 */
 }

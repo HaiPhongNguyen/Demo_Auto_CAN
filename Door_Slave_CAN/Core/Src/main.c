@@ -56,6 +56,7 @@ CAN_TxHeaderTypeDef   TxHeader =
 };
 uint8_t               TxData[8];
 uint32_t              TxMailbox;
+uint8_t btFlag = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -151,7 +152,16 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  HAL_GPIO_WritePin(SLT_GPIO_Port, SLT_Pin, 0);
+	if(btFlag == 1)
+	{
+		btFlag = 0;
+		if(doorState == 1)
+		{
+			doorState = 0;
+		}
+	}
+
+	HAL_GPIO_WritePin(SLT_GPIO_Port, SLT_Pin, 0);
 	status = MFRC522_Request(PICC_REQIDL, cardType);
 	// Chống va chạm, đọc UID
 	status = MFRC522_Anticoll(uid);
@@ -190,7 +200,7 @@ int main(void)
 	   Error_Handler ();
 	}
 
-	HAL_Delay(2000U);
+	HAL_Delay(200U);
   }
   /* USER CODE END 3 */
 }
@@ -419,11 +429,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : SW_Pin */
-  GPIO_InitStruct.Pin = SW_Pin;
+  /*Configure GPIO pin : PB7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(SW_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 1, 0);
@@ -437,8 +447,11 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	(void) GPIO_Pin;
-	doorState = 0;
+	if(GPIO_Pin == GPIO_PIN_7)
+	{
+		btFlag = 1;
+	}
+
 
 }
 /* USER CODE END 4 */

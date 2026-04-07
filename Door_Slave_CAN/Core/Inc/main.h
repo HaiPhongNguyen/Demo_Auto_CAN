@@ -61,9 +61,6 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define SLT_Pin GPIO_PIN_0
 #define SLT_GPIO_Port GPIOA
-#define SW_Pin GPIO_PIN_7
-#define SW_GPIO_Port GPIOB
-#define SW_EXTI_IRQn EXTI9_5_IRQn
 
 /* USER CODE BEGIN Private defines */
 
