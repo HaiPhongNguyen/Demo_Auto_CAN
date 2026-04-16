@@ -60,8 +60,8 @@ all: main-build
 main-build: Master_CAN.elf secondary-outputs
 
 # Tool invocations
-Master_CAN.elf Master_CAN.map: $(OBJS) $(USER_OBJS) E:\DMA_Course\Master_CAN\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "Master_CAN.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"E:\DMA_Course\Master_CAN\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Master_CAN.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Master_CAN.elf Master_CAN.map: $(OBJS) $(USER_OBJS) E:\GitProject\CAN_Bus\Demo_Auto_CAN\Master_CAN\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Master_CAN.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"E:\GitProject\CAN_Bus\Demo_Auto_CAN\Master_CAN\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Master_CAN.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

@@ -144,7 +144,10 @@ int main(void)
   uint8_t cardType[2];
   uint8_t uid[4] = {0};
   /* USER CODE END 2 */
-
+  Servo_Write(180);
+  HAL_Delay(2000U);
+  Servo_Write(0);
+  HAL_Delay(2000U);
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)

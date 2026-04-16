@@ -63,8 +63,8 @@ all: main-build
 main-build: Door_Slave_CAN.elf secondary-outputs
 
 # Tool invocations
-Door_Slave_CAN.elf Door_Slave_CAN.map: $(OBJS) $(USER_OBJS) E:\DMA_Course\Door_Slave_CAN\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "Door_Slave_CAN.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"E:\DMA_Course\Door_Slave_CAN\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Door_Slave_CAN.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Door_Slave_CAN.elf Door_Slave_CAN.map: $(OBJS) $(USER_OBJS) E:\GitProject\CAN_Bus\Demo_Auto_CAN\Door_Slave_CAN\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Door_Slave_CAN.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"E:\GitProject\CAN_Bus\Demo_Auto_CAN\Door_Slave_CAN\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Door_Slave_CAN.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
