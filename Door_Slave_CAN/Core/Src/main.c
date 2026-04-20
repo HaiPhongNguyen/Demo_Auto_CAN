@@ -176,7 +176,7 @@ int main(void)
 		{	/* Open door */
 			Servo_Write(90);
 			doorState = 1;
-			TxHeader.StdId = 0x401;
+			TxHeader.StdId = 0x301;
 			TxHeader.DLC = 4;
 			TxData [0] = uid[0];
 			TxData [1] = uid[1];
@@ -195,7 +195,7 @@ int main(void)
 		Servo_Write(180);
 	}
 
-	TxHeader.StdId = 0x402;
+	TxHeader.StdId = 0x302;
 	TxHeader.DLC = 1;
 	TxData [0] = doorState;
 	if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
@@ -278,7 +278,20 @@ static void MX_CAN_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
+  CAN_FilterTypeDef canfilterconfig;
 
+  canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
+  canfilterconfig.FilterBank = 13;  // which filter bank to use from the assigned ones
+  canfilterconfig.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+  canfilterconfig.FilterIdHigh = 0x0000;
+  canfilterconfig.FilterIdLow = 0x0000;
+  canfilterconfig.FilterMaskIdHigh = 0x0000;
+  canfilterconfig.FilterMaskIdLow = 0x0000;
+  canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
+  canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
+  canfilterconfig.SlaveStartFilterBank = 20;  // how many filters to assign to the CAN1 (master can)
+
+  HAL_CAN_ConfigFilter(&hcan, &canfilterconfig);
   /* USER CODE END CAN_Init 2 */
 
 }
