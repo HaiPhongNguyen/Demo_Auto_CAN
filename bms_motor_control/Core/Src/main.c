@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "sensor.h"
+#include "motor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,7 +55,7 @@ TIM_HandleTypeDef htim3;
 
 volatile float rpm = 0;
 float rpm_filtered = 0;
-
+float act_rpm;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -67,29 +68,40 @@ static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+//void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+//{
+//    if(htim->Instance == TIM2) // 10ms
+//    {
+//        int16_t delta = __HAL_TIM_GET_COUNTER(&htim3);
+//        __HAL_TIM_SET_COUNTER(&htim3, 0);
+//
+//        // Deadband chống nhiễu nhỏ
+//        if(delta > -1 && delta < 1)
+//            delta = 0;
+//
+//        // Tính RPM (đã sửa DT = 0.01)
+//        rpm = (delta * 60.0f) / (PPR * DT);
+//
+//        // Lọc RPM
+//        rpm_filtered = (1.0f - ALPHA) * rpm_filtered + ALPHA * rpm;
+//    }
+//}
+volatile int16_t counter = 0;
+volatile int16_t count = 0;
+
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
-    if(htim->Instance == TIM2) // 10ms
-    {
-        int16_t delta = __HAL_TIM_GET_COUNTER(&htim3);
-        __HAL_TIM_SET_COUNTER(&htim3, 0);
-
-        // Deadband chống nhiễu nhỏ
-        if(delta > -1 && delta < 1)
-            delta = 0;
-
-        // Tính RPM (đã sửa DT = 0.01)
-        rpm = (delta * 60.0f) / (PPR * DT);
-
-        // Lọc RPM
-        rpm_filtered = (1.0f - ALPHA) * rpm_filtered + ALPHA * rpm;
-    }
+	counter = __HAL_TIM_GET_COUNTER(htim);
+	count = count/4;
 }
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+float offset = 0.0;
+float temp = 0.0;
+float Vbat = 0.0;
+float current = 0.0;
 /* USER CODE END 0 */
 
 /**
@@ -127,17 +139,28 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start_IT(&htim2);
-  HAL_TIM_Encoder_Start_IT(&htim3, TIM_CHANNEL_ALL);
+  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+  Motor_Init(&htim1);
+  Stop();
+
+  offset = readOffset();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  temp = readTemperature();
+  Vbat = readVbat();
+  current = readCurrent(offset);
+  goForward(50);
+
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  temp = readTemperature();
+	  counter = __HAL_TIM_GET_COUNTER(&htim3);
+	  HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -307,7 +330,7 @@ static void MX_TIM1_Init(void)
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 63;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 65535;
+  htim1.Init.Period = 99;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -384,7 +407,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 63;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 65535;
+  htim2.Init.Period = 10000-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -436,7 +459,7 @@ static void MX_TIM3_Init(void)
   sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 5;
+  sConfig.IC1Filter = 0;
   sConfig.IC2Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;

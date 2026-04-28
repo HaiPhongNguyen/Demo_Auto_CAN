@@ -144,10 +144,7 @@ int main(void)
   uint8_t cardType[2];
   uint8_t uid[4] = {0};
   /* USER CODE END 2 */
-  Servo_Write(180);
-  HAL_Delay(2000U);
-  Servo_Write(0);
-  HAL_Delay(2000U);
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -161,6 +158,14 @@ int main(void)
 		if(doorState == 1)
 		{
 			doorState = 0;
+			Servo_Write(180);
+			TxHeader.StdId = 0x302;
+			TxHeader.DLC = 1;
+			TxData [0] = 0;
+			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+			{
+			   Error_Handler ();
+			}
 		}
 	}
 
@@ -185,25 +190,25 @@ int main(void)
 
 			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
 			{
-			   Error_Handler ();
+			   Error_Handler();
+			}
+
+
+			HAL_Delay(20);
+
+			TxHeader.StdId = 0x302;
+			TxHeader.DLC = 1;
+			TxData [0] = 1;
+			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+			{
+			   Error_Handler();
 			}
 		}
 	}
-
 	if(doorState == 0)
 	{
 		Servo_Write(180);
 	}
-
-	TxHeader.StdId = 0x302;
-	TxHeader.DLC = 1;
-	TxData [0] = doorState;
-	if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
-	{
-	   Error_Handler ();
-	}
-
-	HAL_Delay(200U);
   }
   /* USER CODE END 3 */
 }
@@ -270,7 +275,7 @@ static void MX_CAN_Init(void)
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = ENABLE;
   hcan.Init.AutoWakeUp = ENABLE;
-  hcan.Init.AutoRetransmission = DISABLE;
+  hcan.Init.AutoRetransmission = ENABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
   hcan.Init.TransmitFifoPriority = DISABLE;
   if (HAL_CAN_Init(&hcan) != HAL_OK)

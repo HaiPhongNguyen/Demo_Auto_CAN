@@ -1,4 +1,0 @@
-../Core/Src/hcsr04.c:4:6:delay_us	16	static
-../Core/Src/hcsr04.c:10:6:HCSR04_IC_Trigger	16	static
-../Core/Src/hcsr04.c:23:6:HCSR04_IC_Init	16	static
-../Core/Src/hcsr04.c:30:6:HCSR04_IC_Callback	24	static

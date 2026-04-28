@@ -10,18 +10,13 @@
 
 #include "main.h"
 
-HAL_StatusTypeDef ADC1_Channel_Selection(ADC_ChannelConfTypeDef* sConfig)
-{
-	HAL_ADC_ConfigChannel
-}
-/*
- * @brief  This function will convert Resistance which measure through voltage, to temperature
- */
-double Steinhart_Hart(double R);
+#define R1 10
+#define R2 2.5
 
-/*
- * @Brief	This function will convert measured voltage to Resistance
- */
-double VoltageToResistance(double voltage);
+float readTemperature();
+float readVbat();
+float readCurrent(float offset);
+float readOffset();
+
 
 #endif /* INC_SENSOR_H_ */

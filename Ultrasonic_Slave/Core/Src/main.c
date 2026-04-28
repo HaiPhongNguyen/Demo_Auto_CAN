@@ -27,7 +27,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#define FILTER_SIZE 5
+#define FILTER_SIZE 2
 typedef struct {
     float buffer[FILTER_SIZE];
     float sum;
@@ -170,14 +170,14 @@ int main(void)
   HCSR04_IC_Init(&cb1);
   HCSR04_IC_Init(&cb2);
   HCSR04_IC_Init(&cb3);
-//  HCSR04_IC_Init(&cb1);
   float distance1 = 0.0 , distance2 = 0.0, distance3 = 0.0;
+  float bzState = 0.0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   HAL_CAN_Start(&hcan);
-
+	  HAL_GPIO_WritePin(SLT_GPIO_Port, SLT_Pin, 0);
   /* Warm up device, skip this dummy value */
   for(uint8_t i = 0; i < 5; i++)
   {
@@ -197,13 +197,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  	  HAL_GPIO_WritePin(SLT_GPIO_Port, SLT_Pin, 0);
 
+	  	  HAL_Delay(20U);
 	    HCSR04_IC_Trigger(&cb1);
 	    HCSR04_IC_Trigger(&cb2);
 	    HCSR04_IC_Trigger(&cb3);
-
-	    HAL_Delay(20);
 
 	    distance1 = MovingAvg_Update(&filter1, cb1.distance);
 	    distance2 = MovingAvg_Update(&filter2, cb2.distance);
@@ -212,10 +210,12 @@ int main(void)
 	    if(distance1 < 30 || distance2 < 30 || distance3 < 30)
 	    {
 	    	HAL_GPIO_WritePin(BZ_GPIO_Port, BZ_Pin, 1);
+	    	bzState = 1.0;
 	    }
-	    else
+	    else if((distance1 > 30) && (distance2 > 30) && (distance3 > 30))
 	    {
 	    	HAL_GPIO_WritePin(BZ_GPIO_Port, BZ_Pin, 0);
+	    	bzState = 0.0;
 	    }
 
 	    /* Distance 1 -> left sensor */
@@ -250,6 +250,17 @@ int main(void)
 		{
 			  Error_Handler ();
 		}
+
+	    /* bz state */
+//		TxHeader.StdId = 0x204;
+//		TxHeader.DLC = 4;
+//
+//		memcpy(TxData, &distance3, 4);
+//
+//		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+//		{
+//			  Error_Handler ();
+//		}
 
   }
   /* USER CODE END 3 */

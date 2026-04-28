@@ -72,7 +72,8 @@ static void MX_USART1_UART_Init(void);
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
     CAN_Frame_t tempFrame;
-
+    if (HAL_CAN_GetError(hcan) != HAL_CAN_ERROR_NONE)
+        return;
     HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &tempFrame.header, tempFrame.data);
 
     if (canCount < CAN_QUEUE_SIZE)

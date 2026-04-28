@@ -2,11 +2,14 @@ import sys
 import serial
 import serial.tools.list_ports
 from datetime import datetime
+import struct
+
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QPushButton, QComboBox, 
                              QSlider, QGroupBox, QProgressBar, QTextEdit, QGridLayout)
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QPixmap, QFont
+
 
 class CANBusApp(QMainWindow):
     def __init__(self):
@@ -171,14 +174,18 @@ class CANBusApp(QMainWindow):
         mid_layout.addWidget(ctrl_group, 1)
         main_layout.addLayout(mid_layout)
 
-        # --- PHẦN 4: LOG MONITOR ---
         main_layout.addWidget(QLabel("<b>LOG DỮ LIỆU CAN BUS:</b>"))
         self.log_screen = QTextEdit()
         self.log_screen.setReadOnly(True)
         self.log_screen.setStyleSheet("background-color: #1e1e1e; color: #00ff00; font-family: 'Consolas';")
         main_layout.addWidget(self.log_screen, 2)
 
-    # --- LOGIC XỬ LÝ ---
+    # ================= LOGIC =================
+
+    def decode_float(self, p):
+        raw_bytes = bytes([int(x) for x in p[1:5]])
+        return struct.unpack('<f', raw_bytes)[0]
+
     def refresh_ports(self):
         self.port_combo.clear()
         self.port_combo.addItems([p.device for p in serial.tools.list_ports.comports()])
@@ -203,44 +210,87 @@ class CANBusApp(QMainWindow):
         self.log_screen.moveCursor(self.log_screen.textCursor().End)
 
     def read_serial(self):
-        if self.serial_port and self.serial_port.is_open:
-            if self.serial_port.in_waiting > 0:
-                try:
-                    line = self.serial_port.readline().decode('utf-8', errors='ignore').strip()
-                    if line:
-                        self.write_log("RX", line)
-                        self.parse_can_data(line)
-                except: pass
+        if not (self.serial_port and self.serial_port.is_open):
+            return
+
+        try:
+            data = self.serial_port.read_all()  # đọc hết sạch
+            if not data:
+                return
+
+            text = data.decode('utf-8', errors='ignore')
+            lines = text.splitlines()
+
+            for line in lines:
+                if line:
+                    self.write_log("RX", line)
+                    self.parse_can_data(line)
+
+        except Exception as e:
+            self.write_log("ERROR", str(e))
 
     def parse_can_data(self, data):
         try:
+            if not data or not data[0].isdigit():
+                return
+
             p = data.split(',')
-            can_id = p[0]
-            if can_id == "101":
-                self.lbl_speed.setText(f"Tốc độ: {(int(p[1]) << 8) | int(p[2])} km/h")
-            elif can_id == "201": self.bar_left.setValue(min((int(p[1]) << 8) | int(p[2]), 400))
-            elif can_id == "202": self.bar_right.setValue(min((int(p[1]) << 8) | int(p[2]), 400))
-            elif can_id == "203": self.bar_rear.setValue(min((int(p[1]) << 8) | int(p[2]), 400))
-            elif can_id == "204":
-                is_on = int(p[3]) == 1
-                self.lbl_buzzer.setText(f"BUZZER: {'ON' if is_on else 'OFF'}")
-                self.lbl_buzzer.setStyleSheet(f"background-color: {'#D32F2F' if is_on else '#eee'}; color: {'white' if is_on else 'black'}; padding: 10px;")
-            elif can_id == "301":
-                self.lbl_rfid.setText(f"Mã thẻ RFID: {''.join(p[1:5]).upper()}")
-            elif can_id == "302":
-                is_open = int(p[5]) == 1
+            can_id = int(p[0])
+
+            # SPEED
+            if can_id == 0x101:
+                speed = (int(p[1]) << 8) | int(p[2])
+                self.lbl_speed.setText(f"Tốc độ: {speed} km/h")
+                
+            # RFID
+            elif can_id == 0x301:
+                self.lbl_rfid.setText(f"Mã thẻ RFID: {' '.join(p[1:])}")
+                
+            # DOOR
+            elif can_id == 0x302:
+                is_open = int(p[1]) == 1
+
                 self.lbl_door.setText(f"CỬA: {'ĐANG MỞ' if is_open else 'ĐANG ĐÓNG'}")
-                self.lbl_door.setStyleSheet(f"background-color: {'#D32F2F' if is_open else '#2E7D32'}; color: white; font-weight: bold; padding: 15px; border-radius: 5px;")
-            elif can_id == "404":
+                self.lbl_door.setStyleSheet(
+                    f"background-color: {'#D32F2F' if is_open else '#2E7D32'}; color: white; font-weight: bold; padding: 15px; border-radius: 5px;"
+                )
+                
+            # SENSOR FLOAT (cm)
+            elif can_id == 0x201:
+                value = self.decode_float(p)
+                value = max(0, min(value, 400))
+                self.bar_left.setValue(int(value))
+                self.bar_left.setFormat(f"{value:.1f} cm")
+
+            elif can_id == 0x202:
+                value = self.decode_float(p)
+                value = max(0, min(value, 400))
+                self.bar_right.setValue(int(value))
+                self.bar_right.setFormat(f"{value:.1f} cm")
+
+            elif can_id == 0x203:
+                value = self.decode_float(p)
+                value = max(0, min(value, 400))
+                self.bar_rear.setValue(int(value))
+                self.bar_rear.setFormat(f"{value:.1f} cm")
+
+            # BUZZER
+            elif can_id == 0x204:
+                is_on = int(p[1]) == 1
+
+                self.lbl_buzzer.setText(f"BUZZER: {'ON' if is_on else 'OFF'}")
+                self.lbl_buzzer.setStyleSheet(
+                    f"background-color: {'#D32F2F' if is_on else '#eee'}; color: {'white' if is_on else 'black'}; padding: 10px;"
+                )
+
+            # SOC
+            elif can_id == 0x404:
                 self.progress_soc.setValue(int(p[6]))
                 self.lbl_soc.setText(f"Pin (SOC): {p[6]}%")
-        except: pass
 
-    def send_command(self, action):
-        if self.serial_port and self.serial_port.is_open:
-            cmd = f"CMD,{action},{self.speed_slider.value()}\n"
-            self.serial_port.write(cmd.encode())
-            self.write_log("TX", cmd.strip())
+        except Exception as e:
+            self.write_log("ERROR", str(e))
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
