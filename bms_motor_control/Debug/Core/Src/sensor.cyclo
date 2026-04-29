@@ -1,0 +1,7 @@
+../Core/Src/sensor.c:25:15:Steinhart_Hart	1
+../Core/Src/sensor.c:36:15:VoltageToResistance	1
+../Core/Src/sensor.c:42:26:ADC1_Channel_Selection	2
+../Core/Src/sensor.c:56:7:readTemperature	2
+../Core/Src/sensor.c:80:7:readVbat	2
+../Core/Src/sensor.c:102:7:readCurrent	2
+../Core/Src/sensor.c:126:7:readOffset	2

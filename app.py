@@ -119,7 +119,18 @@ class CANBusApp(QMainWindow):
         self.lbl_rfid = QLabel("Mã thẻ RFID: ----")
         dash_v.addWidget(self.lbl_speed)
         dash_v.addWidget(self.lbl_soc)
+        # ===== BATTERY  =====
         dash_v.addWidget(self.progress_soc)
+        self.lbl_voltage = QLabel("Voltage: 0 V")
+        self.lbl_current = QLabel("Current: 0 A")
+        self.lbl_temp = QLabel("Temperature: 0 °C")
+
+        for lbl in [self.lbl_voltage, self.lbl_current, self.lbl_temp]:
+            lbl.setStyleSheet("font-size: 13pt; color: #1B5E20; font-weight: 600;")
+
+        dash_v.addWidget(self.lbl_voltage)
+        dash_v.addWidget(self.lbl_current)
+        dash_v.addWidget(self.lbl_temp)
         dash_v.addSpacing(15)
         dash_v.addWidget(self.lbl_door)
         dash_v.addWidget(self.lbl_rfid)
@@ -208,7 +219,38 @@ class CANBusApp(QMainWindow):
         color = "#00ff00" if direction == "RX" else "#ffaa00" if direction == "TX" else "#ffffff"
         self.log_screen.append(f"<span style='color:gray'>[{t}]</span> <span style='color:{color}'><b>{direction}:</b> {message}</span>")
         self.log_screen.moveCursor(self.log_screen.textCursor().End)
+    
+    def send_command(self, direction):
+        if not (self.serial_port and self.serial_port.is_open):
+            self.write_log("ERROR", "Chưa kết nối Serial")
+            return
 
+        speed = self.speed_slider.value()
+
+        # ===== encode direction =====
+        if direction == "FWD":
+            dir_byte = 1
+        elif direction == "REV":
+            dir_byte = 2
+        else:
+            dir_byte = 0
+            speed = 0
+
+        # ===== CAN FRAME =====
+        can_id = 0x105
+        dlc = 2
+        data = [dir_byte, speed]
+
+        frame = bytes([
+            (can_id >> 8) & 0xFF,
+            can_id & 0xFF,
+            dlc,
+            dir_byte,
+            speed
+        ])
+
+        self.serial_port.write(frame)
+            
     def read_serial(self):
         if not (self.serial_port and self.serial_port.is_open):
             return
@@ -236,14 +278,9 @@ class CANBusApp(QMainWindow):
 
             p = data.split(',')
             can_id = int(p[0])
-
-            # SPEED
-            if can_id == 0x101:
-                speed = (int(p[1]) << 8) | int(p[2])
-                self.lbl_speed.setText(f"Tốc độ: {speed} km/h")
                 
             # RFID
-            elif can_id == 0x301:
+            if can_id == 0x301:
                 self.lbl_rfid.setText(f"Mã thẻ RFID: {' '.join(p[1:])}")
                 
             # DOOR
@@ -282,11 +319,23 @@ class CANBusApp(QMainWindow):
                 self.lbl_buzzer.setStyleSheet(
                     f"background-color: {'#D32F2F' if is_on else '#eee'}; color: {'white' if is_on else 'black'}; padding: 10px;"
                 )
+            # ===== BATTERY =====
+            elif can_id == 0x401:
+                value = self.decode_float(p)
+                self.lbl_voltage.setText(f"Voltage: {value:.2f} V")
 
+            elif can_id == 0x402:
+                value = self.decode_float(p)
+                self.lbl_current.setText(f"Current: {value:.2f} A")
+
+            elif can_id == 0x403:
+                value = self.decode_float(p)
+                self.lbl_temp.setText(f"Temperature: {value:.2f} °C")
             # SOC
             elif can_id == 0x404:
-                self.progress_soc.setValue(int(p[6]))
-                self.lbl_soc.setText(f"Pin (SOC): {p[6]}%")
+                value = self.decode_float(p)
+                self.progress_soc.setValue(int(value))
+                self.lbl_soc.setText(f"Pin (SOC): {value:.1f}%")
 
         except Exception as e:
             self.write_log("ERROR", str(e))

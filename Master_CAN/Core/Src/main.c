@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,6 +31,15 @@ typedef struct
 	CAN_RxHeaderTypeDef header;
 	uint8_t data[8];
 } CAN_Frame_t;
+
+CAN_TxHeaderTypeDef   TxHeader =
+{
+	.IDE = CAN_ID_STD,
+	.RTR = CAN_RTR_DATA,
+	.TransmitGlobalTime = DISABLE
+};
+uint8_t               TxData[8];
+uint32_t              TxMailbox;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -56,6 +65,10 @@ volatile uint8_t canCount = 0;
 
 uint8_t RxData[64];
 uint8_t UART_TxData[64];
+
+volatile uint8_t Uart_RxData[5];
+
+uint8_t sendCmdFlag = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,6 +100,24 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
         // buffer full -> báo lỗi mất frame
     }
 
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART1)
+    {
+    	uint16_t can_id = (Uart_RxData[0] << 8) | Uart_RxData[1];
+    	uint8_t dlc = Uart_RxData[2];
+
+		TxHeader.StdId = can_id;
+		TxHeader.DLC = dlc;
+
+		memcpy(TxData, &Uart_RxData[3U], 2);
+
+    	sendCmdFlag = 1;
+
+        HAL_UART_Receive_IT(huart, &Uart_RxData[0U], 5);
+    }
 }
 /* USER CODE END 0 */
 
@@ -127,6 +158,8 @@ int main(void)
   HAL_Delay(1000);
 
   HAL_CAN_Start(&hcan);
+  HAL_GPIO_WritePin(SLT_GPIO_Port, SLT_Pin, 0);
+  HAL_UART_Receive_IT(&huart1, &Uart_RxData[0U], 5);
 
   /* Active the notification */
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
@@ -154,6 +187,19 @@ int main(void)
 		  memcpy(&uartPacket[3U], frame.data, frame.header.DLC);
 
 		  HAL_UART_Transmit(&huart1, uartPacket, frame.header.DLC + 3, 100);
+	  }
+
+	  if(sendCmdFlag == 1)
+	  {
+		  if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
+		  {
+			  if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+			  {
+				  Error_Handler ();
+			  }
+			  HAL_Delay(1);
+		  }
+		  sendCmdFlag = 0;
 	  }
   }
   /* USER CODE END 3 */
@@ -287,12 +333,23 @@ static void MX_USART1_UART_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SLT_GPIO_Port, SLT_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : SLT_Pin */
+  GPIO_InitStruct.Pin = SLT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SLT_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

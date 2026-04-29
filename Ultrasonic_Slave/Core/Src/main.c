@@ -171,7 +171,7 @@ int main(void)
   HCSR04_IC_Init(&cb2);
   HCSR04_IC_Init(&cb3);
   float distance1 = 0.0 , distance2 = 0.0, distance3 = 0.0;
-  float bzState = 0.0;
+  uint8_t bzState = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -210,12 +210,12 @@ int main(void)
 	    if(distance1 < 30 || distance2 < 30 || distance3 < 30)
 	    {
 	    	HAL_GPIO_WritePin(BZ_GPIO_Port, BZ_Pin, 1);
-	    	bzState = 1.0;
+	    	bzState = 1;
 	    }
 	    else if((distance1 > 30) && (distance2 > 30) && (distance3 > 30))
 	    {
 	    	HAL_GPIO_WritePin(BZ_GPIO_Port, BZ_Pin, 0);
-	    	bzState = 0.0;
+	    	bzState = 0;
 	    }
 
 	    /* Distance 1 -> left sensor */
@@ -224,9 +224,13 @@ int main(void)
 
 		memcpy(TxData, &distance1, 4);
 
-		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+		if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
 		{
-			  Error_Handler ();
+			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+			{
+			   Error_Handler ();
+			}
+			HAL_Delay(1);
 		}
 
 	    /* Distance 2 -> middle sensor */
@@ -235,9 +239,13 @@ int main(void)
 
 		memcpy(TxData, &distance2, 4);
 
-		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+		if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
 		{
-			  Error_Handler ();
+			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+			{
+			   Error_Handler ();
+			}
+			HAL_Delay(1);
 		}
 
 	    /* Distance 3 -> right sensor */
@@ -246,21 +254,28 @@ int main(void)
 
 		memcpy(TxData, &distance3, 4);
 
-		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+		if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
 		{
-			  Error_Handler ();
+			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+			{
+			   Error_Handler ();
+			}
+			HAL_Delay(1);
 		}
 
 	    /* bz state */
-//		TxHeader.StdId = 0x204;
-//		TxHeader.DLC = 4;
-//
-//		memcpy(TxData, &distance3, 4);
-//
-//		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
-//		{
-//			  Error_Handler ();
-//		}
+		TxHeader.StdId = 0x204;
+		TxHeader.DLC = 1;
+		TxData[0] = bzState;
+
+		if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
+		{
+			if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+			{
+			   Error_Handler ();
+			}
+			HAL_Delay(1);
+		}
 
   }
   /* USER CODE END 3 */

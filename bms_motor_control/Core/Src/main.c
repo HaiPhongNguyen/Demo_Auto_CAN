@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "sensor.h"
 #include "motor.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,6 +57,21 @@ TIM_HandleTypeDef htim3;
 volatile float rpm = 0;
 float rpm_filtered = 0;
 float act_rpm;
+float soc = 0.0;
+
+CAN_RxHeaderTypeDef	RxHeader;
+uint8_t RxData[2];
+uint8_t RxCmdFlag;
+
+
+CAN_TxHeaderTypeDef   TxHeader =
+{
+	.IDE = CAN_ID_STD,
+	.RTR = CAN_RTR_DATA,
+	.TransmitGlobalTime = DISABLE
+};
+uint8_t               TxData[8];
+uint32_t              TxMailbox;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -94,6 +110,19 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	counter = __HAL_TIM_GET_COUNTER(htim);
 	count = count/4;
 }
+
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{
+    if (HAL_CAN_GetError(hcan) != HAL_CAN_ERROR_NONE)
+        return;
+    HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData);
+
+    if(RxHeader.StdId == 0x105 && RxHeader.DLC == 2)
+    {
+    	RxCmdFlag = 1;
+    }
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -102,6 +131,7 @@ float offset = 0.0;
 float temp = 0.0;
 float Vbat = 0.0;
 float current = 0.0;
+float speed = 50;
 /* USER CODE END 0 */
 
 /**
@@ -139,6 +169,8 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_CAN_Start(&hcan);
+
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
   Motor_Init(&htim1);
   Stop();
@@ -148,19 +180,102 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  temp = readTemperature();
-  Vbat = readVbat();
-  current = readCurrent(offset);
-  goForward(50);
+  HAL_Delay(100U);
 
+  HAL_GPIO_WritePin(SLT_GPIO_Port, SLT_Pin, 0);
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  temp = readTemperature();
-	  counter = __HAL_TIM_GET_COUNTER(&htim3);
-	  HAL_Delay(100);
+	temp = readTemperature();
+	Vbat = readVbat();
+	soc = (Vbat / 12.6) * 100;
+	current = readCurrent(offset);
+
+	/* Vehicle speed - read from pc */
+
+	/* Motor status - read from pc */
+
+	/* Battery voltage - send to pc */
+	TxHeader.StdId = 0x401;
+	TxHeader.DLC = 4;
+	memcpy(TxData, &Vbat, 4);
+	if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
+	{
+		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+		{
+		   Error_Handler ();
+		}
+		HAL_Delay(1);
+	}
+
+	/* Battery current - send to pc */
+	TxHeader.StdId = 0x402;
+	TxHeader.DLC = 4;
+	memcpy(TxData, &current, 4);
+	if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
+	{
+		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+		{
+		   Error_Handler ();
+		}
+		HAL_Delay(1);
+	}
+
+	/* Battery temp - send to pc */
+	TxHeader.StdId = 0x403;
+	TxHeader.DLC = 4;
+	memcpy(TxData, &temp, 4);
+	if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
+	{
+		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+		{
+		   Error_Handler ();
+		}
+		HAL_Delay(1);
+	}
+
+	/* Battery soc - send to pc */
+	TxHeader.StdId = 0x404;
+	TxHeader.DLC = 4;
+	memcpy(TxData, &soc, 4);
+	if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
+	{
+		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+		{
+		   Error_Handler ();
+		}
+		HAL_Delay(1);
+	}
+
+	if(RxCmdFlag == 1)
+	{
+		/* Do cmd */
+		if(RxData[0] == 1)
+		{
+			/* Go forward */
+			uint8_t speed = RxData[1];
+			goForward(speed);
+		}
+		else if(RxData[0] == 2)
+		{
+			/* Go backward */
+			uint8_t speed = RxData[1];
+			goBackward(speed);
+		}
+		else if(RxData[0] == 0)
+		{
+			/* Stop */
+			Stop();
+		}
+		else
+		{
+
+		}
+	}
+	HAL_Delay(30U);
   }
   /* USER CODE END 3 */
 }
@@ -279,8 +394,8 @@ static void MX_CAN_Init(void)
   hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_6TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
-  hcan.Init.AutoBusOff = DISABLE;
-  hcan.Init.AutoWakeUp = DISABLE;
+  hcan.Init.AutoBusOff = ENABLE;
+  hcan.Init.AutoWakeUp = ENABLE;
   hcan.Init.AutoRetransmission = DISABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
   hcan.Init.TransmitFifoPriority = DISABLE;
