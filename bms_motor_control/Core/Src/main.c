@@ -33,9 +33,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DT      0.01f     // 10ms
-#define PPR     330.0f    // chỉnh theo encoder bạn
-#define ALPHA   0.3f      // hệ số lọc
+#define PPR 2640      // chỉnh theo motor
+#define SAMPLE_TIME 0.1f  // 100ms
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -50,13 +49,11 @@ CAN_HandleTypeDef hcan;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
-TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 
 volatile float rpm = 0;
-float rpm_filtered = 0;
-float act_rpm;
+
 float soc = 0.0;
 
 CAN_RxHeaderTypeDef	RxHeader;
@@ -80,35 +77,28 @@ static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_CAN_Init(void);
-static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-
-//void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-//{
-//    if(htim->Instance == TIM2) // 10ms
-//    {
-//        int16_t delta = __HAL_TIM_GET_COUNTER(&htim3);
-//        __HAL_TIM_SET_COUNTER(&htim3, 0);
-//
-//        // Deadband chống nhiễu nhỏ
-//        if(delta > -1 && delta < 1)
-//            delta = 0;
-//
-//        // Tính RPM (đã sửa DT = 0.01)
-//        rpm = (delta * 60.0f) / (PPR * DT);
-//
-//        // Lọc RPM
-//        rpm_filtered = (1.0f - ALPHA) * rpm_filtered + ALPHA * rpm;
-//    }
-//}
-volatile int16_t counter = 0;
-volatile int16_t count = 0;
-
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+volatile int32_t encoder_count = 0;
+volatile int32_t last_count = 0;
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	counter = __HAL_TIM_GET_COUNTER(htim);
-	count = count/4;
+    if (GPIO_Pin == GPIO_PIN_6)
+    {
+        encoder_count++;
+    }
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if(htim->Instance == TIM2) // 100ms
+    {
+        int32_t now = encoder_count;
+        int32_t delta = now - last_count;
+        last_count = now;
+
+        rpm = (delta * 600.0f) / PPR;
+    }
 }
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -166,12 +156,12 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM1_Init();
   MX_CAN_Init();
-  MX_TIM3_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   HAL_CAN_Start(&hcan);
 
-  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+
+  HAL_TIM_Base_Start_IT(&htim2);
   Motor_Init(&htim1);
   Stop();
 
@@ -184,6 +174,7 @@ int main(void)
 
   HAL_GPIO_WritePin(SLT_GPIO_Port, SLT_Pin, 0);
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+
   while (1)
   {
     /* USER CODE END WHILE */
@@ -241,6 +232,19 @@ int main(void)
 	TxHeader.StdId = 0x404;
 	TxHeader.DLC = 4;
 	memcpy(TxData, &soc, 4);
+	if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
+	{
+		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+		{
+		   Error_Handler ();
+		}
+		HAL_Delay(1);
+	}
+
+	/* Vehicle speed - send to pc rpm */
+	TxHeader.StdId = 0x101;
+	TxHeader.DLC = 4;
+	memcpy(TxData, &rpm, 4);
 	if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
 	{
 		if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
@@ -388,14 +392,14 @@ static void MX_CAN_Init(void)
 
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN1;
-  hcan.Init.Prescaler = 16;
+  hcan.Init.Prescaler = 20;
   hcan.Init.Mode = CAN_MODE_NORMAL;
   hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
-  hcan.Init.TimeSeg2 = CAN_BS2_6TQ;
+  hcan.Init.TimeSeg2 = CAN_BS2_2TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
-  hcan.Init.AutoBusOff = ENABLE;
-  hcan.Init.AutoWakeUp = ENABLE;
+  hcan.Init.AutoBusOff = DISABLE;
+  hcan.Init.AutoWakeUp = DISABLE;
   hcan.Init.AutoRetransmission = DISABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
   hcan.Init.TransmitFifoPriority = DISABLE;
@@ -520,9 +524,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 63;
+  htim2.Init.Prescaler = 64000-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 10000-1;
+  htim2.Init.Period = 100;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -543,55 +547,6 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
-
-}
-
-/**
-  * @brief TIM3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM3_Init(void)
-{
-
-  /* USER CODE BEGIN TIM3_Init 0 */
-
-  /* USER CODE END TIM3_Init 0 */
-
-  TIM_Encoder_InitTypeDef sConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM3_Init 1 */
-
-  /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
-  sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
-  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 0;
-  sConfig.IC2Polarity = TIM_ICPOLARITY_FALLING;
-  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 0;
-  if (HAL_TIM_Encoder_Init(&htim3, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM3_Init 2 */
-
-  /* USER CODE END TIM3_Init 2 */
 
 }
 
@@ -620,6 +575,22 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SLT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

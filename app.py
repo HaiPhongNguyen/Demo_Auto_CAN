@@ -109,7 +109,7 @@ class CANBusApp(QMainWindow):
         # Group: Thông số xe
         dash_group = QGroupBox("TRẠNG THÁI VẬN HÀNH")
         dash_v = QVBoxLayout()
-        self.lbl_speed = QLabel("Tốc độ: 0 km/h")
+        self.lbl_speed = QLabel("Tốc độ: 0 rpm")
         self.lbl_speed.setStyleSheet("font-size: 22px; color: #0D47A1; font-weight: bold;")
         self.lbl_soc = QLabel("Pin (SOC): 0%")
         self.progress_soc = QProgressBar()
@@ -336,6 +336,10 @@ class CANBusApp(QMainWindow):
                 value = self.decode_float(p)
                 self.progress_soc.setValue(int(value))
                 self.lbl_soc.setText(f"Pin (SOC): {value:.1f}%")
+            # ===== SPEED (RPM) =====
+            elif can_id == 0x101:
+                value = self.decode_float(p)
+                self.lbl_speed.setText(f"Tốc độ: {value:.1f} RPM")
 
         except Exception as e:
             self.write_log("ERROR", str(e))
