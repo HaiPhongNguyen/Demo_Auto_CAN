@@ -1,0 +1,12 @@
+[
+   {
+      "directory" : "C:/Users/Phong/workspace_ccstheia/uart_echo/Debug",
+      "command"   : "clang++ -I\"C:/Users/Phong/workspace_ccstheia/uart_echo\" -I\"C:/TI/TivaWare_C_Series-2.2.0.295\" -I\"D:/TI_CCS/ccs/tools/compiler/include\" -Dccs=\"ccs\" -DPART_TM4C123GH6PM -DTARGET_IS_TM4C123_RB1 -xc",
+      "file"      : "C:/Users/Phong/workspace_ccstheia/uart_echo/startup_ccs.c"
+   },
+   {
+      "directory" : "C:/Users/Phong/workspace_ccstheia/uart_echo/Debug",
+      "command"   : "clang++ -I\"C:/Users/Phong/workspace_ccstheia/uart_echo\" -I\"C:/TI/TivaWare_C_Series-2.2.0.295\" -I\"D:/TI_CCS/ccs/tools/compiler/include\" -Dccs=\"ccs\" -DPART_TM4C123GH6PM -DTARGET_IS_TM4C123_RB1 -xc",
+      "file"      : "C:/Users/Phong/workspace_ccstheia/uart_echo/uart_echo.c"
+   }
+]
